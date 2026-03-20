@@ -91,3 +91,8 @@ func (o *Output) JSON(v any) error {
 	enc.SetIndent("", "  ")
 	return enc.Encode(v)
 }
+
+// Theme returns the output's theme for custom styled rendering.
+func (o *Output) Theme() *Theme {
+	return o.theme
+}

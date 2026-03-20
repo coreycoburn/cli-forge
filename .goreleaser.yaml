@@ -5,20 +5,6 @@ before:
     - go mod tidy
 
 builds:
-  - id: example
-    main: ./cmd/example
-    binary: example
-    ldflags:
-      - -s -w -X main.version={{.Version}}
-    env:
-      - CGO_ENABLED=0
-    goos:
-      - darwin
-      - linux
-    goarch:
-      - amd64
-      - arm64
-
   - id: kit
     main: ./cmd/kit
     binary: kit
@@ -34,14 +20,6 @@ builds:
       - arm64
 
 archives:
-  - id: example
-    builds: [example]
-    name_template: "example_{{ .Os }}_{{ .Arch }}"
-    format: tar.gz
-    format_overrides:
-      - goos: windows
-        format: zip
-
   - id: kit
     builds: [kit]
     name_template: "kit_{{ .Os }}_{{ .Arch }}"
@@ -62,18 +40,6 @@ changelog:
       - "^chore:"
 
 brews:
-  - name: example
-    ids: [example]
-    repository:
-      owner: coreycoburn
-      name: homebrew-tap
-      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-    homepage: https://github.com/coreycoburn/cli-forge
-    description: An example CLI built with cli-forge
-    license: MIT
-    install: |
-      bin.install "example"
-
   - name: kit
     ids: [kit]
     repository:

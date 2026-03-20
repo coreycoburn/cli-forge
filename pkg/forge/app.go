@@ -71,6 +71,8 @@ func New(name, description string, opts ...Option) *App {
 	a.root.SilenceErrors = true
 	a.root.SilenceUsage = true
 
+	a.setStyledHelp()
+
 	return a
 }
 

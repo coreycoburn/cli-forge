@@ -103,20 +103,24 @@ func setupCredentials() (*credentials, error) {
 		return nil, fmt.Errorf("all fields are required")
 	}
 
-	// Save to file
+	if err := saveCredentials(creds); err != nil {
+		return nil, err
+	}
+
+	return creds, nil
+}
+
+// saveCredentials writes credentials to the file.
+func saveCredentials(creds *credentials) error {
 	path := credentialsPath()
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		return nil, err
+		return err
 	}
 
 	content := fmt.Sprintf("export CONFLUENCE_BASE_URL=\"%s\"\nexport CONFLUENCE_EMAIL=\"%s\"\nexport CONFLUENCE_API_TOKEN=\"%s\"\n",
 		creds.BaseURL, creds.Email, creds.APIToken)
 
-	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
-		return nil, err
-	}
-
-	return creds, nil
+	return os.WriteFile(path, []byte(content), 0600)
 }
 
 func (c *credentials) isComplete() bool {

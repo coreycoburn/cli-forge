@@ -12,7 +12,10 @@ func main() {
 		forge.WithVersion(version),
 	)
 
-	app.AddCommand(commands.GetCmd())
+	app.AddCommand(
+		commands.GetCmd(),
+		commands.ConfigCmd(),
+	)
 
 	app.Execute()
 }

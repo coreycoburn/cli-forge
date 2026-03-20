@@ -19,10 +19,32 @@ builds:
       - amd64
       - arm64
 
+  - id: confluence
+    main: ./cmd/confluence
+    binary: confluence
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+
 archives:
   - id: kit
     builds: [kit]
     name_template: "kit_{{ .Os }}_{{ .Arch }}"
+    format: tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
+
+  - id: confluence
+    builds: [confluence]
+    name_template: "confluence_{{ .Os }}_{{ .Arch }}"
     format: tar.gz
     format_overrides:
       - goos: windows
@@ -56,3 +78,15 @@ brews:
         brew install --cask inkscape
     install: |
       bin.install "kit"
+
+  - name: confluence
+    ids: [confluence]
+    repository:
+      owner: coreycoburn
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    homepage: https://github.com/coreycoburn/cli-forge
+    description: Confluence CLI — fetch and manage pages
+    license: MIT
+    install: |
+      bin.install "confluence"

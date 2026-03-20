@@ -1,0 +1,31 @@
+package commands
+
+import (
+	"github.com/coreycoburn/cli-forge/pkg/forge"
+	"github.com/spf13/cobra"
+)
+
+// {{.FuncName}}Cmd returns the {{.Name}} command.
+func {{.FuncName}}Cmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "{{.Name}}",
+		Short: "{{.Description}}",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			out := forge.OutputFrom(cmd)
+
+			// TODO: implement command logic
+
+			if out.IsInteractive() {
+				out.Success("{{.Name}} completed")
+			} else {
+				return out.JSON(map[string]string{
+					"status": "ok",
+				})
+			}
+
+			return nil
+		},
+	}
+
+	return cmd
+}

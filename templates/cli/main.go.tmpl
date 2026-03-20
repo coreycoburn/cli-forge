@@ -1,0 +1,18 @@
+package main
+
+import (
+	"github.com/coreycoburn/cli-forge/pkg/forge"
+)
+
+var version = "dev"
+
+func main() {
+	app := forge.New("{{.Name}}", "{{.Description}}",
+		forge.WithVersion(version),
+	)
+
+	// Register commands here:
+	// app.AddCommand(commands.ExampleCmd())
+
+	app.Execute()
+}

@@ -85,7 +85,8 @@ brews:
     license: MIT
     dependencies:
       - name: ghostscript
-      - name: inkscape
-        type: cask
+    caveats: |
+      The convert command also requires Inkscape:
+        brew install --cask inkscape
     install: |
       bin.install "kit"

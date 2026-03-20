@@ -19,25 +19,32 @@ builds:
       - amd64
       - arm64
 
-  # Add more CLIs here:
-  # - id: imgtools
-  #   main: ./cmd/imgtools
-  #   binary: imgtools
-  #   ldflags:
-  #     - -s -w -X main.version={{.Version}}
-  #   env:
-  #     - CGO_ENABLED=0
-  #   goos:
-  #     - darwin
-  #     - linux
-  #   goarch:
-  #     - amd64
-  #     - arm64
+  - id: kit
+    main: ./cmd/kit
+    binary: kit
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
 
 archives:
   - id: example
     builds: [example]
     name_template: "example_{{ .Os }}_{{ .Arch }}"
+    format: tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
+
+  - id: kit
+    builds: [kit]
+    name_template: "kit_{{ .Os }}_{{ .Arch }}"
     format: tar.gz
     format_overrides:
       - goos: windows
@@ -67,15 +74,18 @@ brews:
     install: |
       bin.install "example"
 
-  # Add more formulae here:
-  # - name: imgtools
-  #   ids: [imgtools]
-  #   repository:
-  #     owner: coreycoburn
-  #     name: homebrew-tap
-  #     token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-  #   homepage: https://github.com/coreycoburn/cli-forge
-  #   description: Image processing toolkit
-  #   license: MIT
-  #   install: |
-  #     bin.install "imgtools"
+  - name: kit
+    ids: [kit]
+    repository:
+      owner: coreycoburn
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    homepage: https://github.com/coreycoburn/cli-forge
+    description: Design asset toolkit — convert and optimize files
+    license: MIT
+    dependencies:
+      - name: ghostscript
+      - name: inkscape
+        type: cask
+    install: |
+      bin.install "kit"

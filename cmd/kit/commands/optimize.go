@@ -22,7 +22,7 @@ func OptimizeCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "optimize <file>",
 		Short: "Optimize a file in-place",
-		Long:  "Optimize files in-place.\n\nSupported formats:\n  svg    (minify, remove dimensions, ensure xmlns)",
+		Long:  "Optimize files in-place.\n\nSupported formats:\n  svg    (minify, remove dimensions, colors → currentColor, ensure xmlns)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := forge.OutputFrom(cmd)
@@ -138,19 +138,24 @@ func optimizeSVG(data []byte) ([]byte, error) {
 	s = removeScripts(s)
 
 	// 2. Convert inline style="fill:#color" to presentation attributes
-	//    so the minifier can process them correctly
+	//    so color replacement and minifier can process them correctly
 	s = convertStyleToAttrs(s)
 
-	// 3. Remove width/height from <svg> (keep viewBox for responsive scaling)
+	// 3. Replace fill/stroke colors with currentColor so CSS controls the color.
+	//    Use on the parent element: text-navy, text-white, etc.
+	//    Note: only works when SVG is inlined in HTML — not via <img src="*.svg">
+	s = replaceColorsWithCurrentColor(s)
+
+	// 4. Remove width/height from <svg> (keep viewBox for responsive scaling)
 	s = removeDimensions(s)
 
-	// 4. Replace deprecated xlink:href with href (SVG 2)
+	// 5. Replace deprecated xlink:href with href (SVG 2)
 	s = removeXlink(s)
 
-	// 5. Ensure xmlns attribute (required for <img src="*.svg"> in all browsers)
+	// 6. Ensure xmlns attribute (required for <img src="*.svg"> in all browsers)
 	s = ensureXMLNS(s)
 
-	// 6. Minify with multipass until output stabilizes
+	// 7. Minify with multipass until output stabilizes
 	s, err := minifySVG(s)
 	if err != nil {
 		return nil, err
@@ -200,6 +205,25 @@ func convertStyleToAttrs(s string) string {
 			result += fmt.Sprintf(`style="%s"`, strings.Join(remaining, ";"))
 		}
 		return result
+	})
+}
+
+func replaceColorsWithCurrentColor(s string) string {
+	re := regexp.MustCompile(`\b(fill|stroke)="([^"]*)"`)
+	return re.ReplaceAllStringFunc(s, func(match string) string {
+		parts := re.FindStringSubmatch(match)
+		attr := parts[1]
+		val := parts[2]
+
+		switch val {
+		case "none", "currentColor", "transparent", "inherit":
+			return match
+		}
+		if strings.HasPrefix(val, "url(") {
+			return match
+		}
+
+		return fmt.Sprintf(`%s="currentColor"`, attr)
 	})
 }
 

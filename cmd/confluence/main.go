@@ -14,6 +14,7 @@ func main() {
 
 	app.AddCommand(
 		commands.GetCmd(),
+		commands.PublishCmd(),
 		commands.ConfigCmd(),
 	)
 

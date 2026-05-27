@@ -35,6 +35,9 @@ func ConvertCmd() *cobra.Command {
 			toExt := strings.TrimPrefix(strings.ToLower(filepath.Ext(to)), ".")
 			key := fromExt + "_" + toExt
 
+			if key == "png_svg" {
+				return fmt.Errorf("raster → vector isn't a faithful conversion — use: kit trace %s %s", from, to)
+			}
 			if key != "eps_svg" {
 				return fmt.Errorf("unsupported conversion: %s → %s (supported: eps → svg)", fromExt, toExt)
 			}

@@ -35,3 +35,8 @@ or breaking non-macOS builds.
   could be swapped without a breaking CLI change.
 - A new `ensureBinary` helper (confirm-then-install) lives alongside the
   unchanged `requireBinary` (check-and-hint); existing commands keep the latter.
+- Output is flat-color by default. vtracer reconstructs gradients as many
+  stacked flat-color bands (a real logo ballooned to ~1700 paths); since kit's
+  primary inputs are logos and icons, we raise `gradient_step` to collapse the
+  banding (~160 paths) and gate the photographic banded look behind
+  `--gradients`. Trades gradient fidelity for dramatically smaller, cleaner SVGs.

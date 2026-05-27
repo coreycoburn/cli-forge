@@ -18,9 +18,10 @@ import (
 // on first use.
 func TraceCmd() *cobra.Command {
 	var (
-		mode     string
-		detail   string
-		optimize bool
+		mode      string
+		detail    string
+		gradients bool
+		optimize  bool
 	)
 
 	cmd := &cobra.Command{
@@ -30,10 +31,14 @@ func TraceCmd() *cobra.Command {
 		Long: "Reconstruct a raster image (PNG) as a vector SVG.\n\n" +
 			"Trace is a lossy reconstruction, not a faithful conversion — it\n" +
 			"approximates pixels with vector paths (requires: vtracer).\n\n" +
+			"Output is flat-color by default — ideal for logos. vtracer fakes\n" +
+			"gradients as many stacked color bands, which bloats the file; pass\n" +
+			"--gradients only when you want that photographic banding.\n\n" +
 			"Flags:\n" +
-			"  --mode      color (default) or bw\n" +
-			"  --detail    low | med | high  (default med)\n" +
-			"  --optimize  optimize the SVG after tracing",
+			"  --mode       color (default) or bw\n" +
+			"  --detail     low | med | high  (default med)\n" +
+			"  --gradients  reconstruct gradients as color bands (default: flat)\n" +
+			"  --optimize   optimize the SVG after tracing",
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := forge.OutputFrom(cmd)
@@ -64,7 +69,7 @@ func TraceCmd() *cobra.Command {
 			}
 
 			err = out.Spin(fmt.Sprintf("Tracing %s → %s", fromExt, toExt), func() error {
-				return tracePNGtoSVG(from, to, mode, speckle, precision)
+				return tracePNGtoSVG(from, to, mode, speckle, precision, gradients)
 			})
 			if err != nil {
 				return err
@@ -95,6 +100,7 @@ func TraceCmd() *cobra.Command {
 
 	cmd.Flags().StringVar(&mode, "mode", "color", "Color mode: color or bw")
 	cmd.Flags().StringVar(&detail, "detail", "med", "Detail level: low, med, or high")
+	cmd.Flags().BoolVar(&gradients, "gradients", false, "Reconstruct gradients as color bands (default: flat)")
 	cmd.Flags().BoolVar(&optimize, "optimize", false, "Optimize the SVG after tracing")
 
 	return cmd
@@ -117,13 +123,23 @@ func detailPreset(level string) (speckle, precision int, err error) {
 	}
 }
 
-func tracePNGtoSVG(from, to, mode string, speckle, precision int) error {
+func tracePNGtoSVG(from, to, mode string, speckle, precision int, gradients bool) error {
+	// vtracer reconstructs gradients as stacked flat-color bands; a larger
+	// gradient_step collapses those bands, giving clean flat output suited to
+	// logos. Flat is the default; --gradients drops to vtracer's smaller step
+	// for the banded, photographic look.
+	gradientStep := 32
+	if gradients {
+		gradientStep = 16
+	}
+
 	vt := exec.Command("vtracer",
 		"--input", from,
 		"--output", to,
 		"--colormode", mode,
 		"--filter_speckle", fmt.Sprintf("%d", speckle),
 		"--color_precision", fmt.Sprintf("%d", precision),
+		"--gradient_step", fmt.Sprintf("%d", gradientStep),
 	)
 	vt.Stderr = nil
 	if err := vt.Run(); err != nil {

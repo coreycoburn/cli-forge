@@ -115,7 +115,7 @@ func detailPreset(level string) (speckle, precision int, err error) {
 	case "low":
 		return 10, 4, nil
 	case "med":
-		return 4, 6, nil
+		return 8, 6, nil
 	case "high":
 		return 2, 8, nil
 	default:
@@ -140,6 +140,12 @@ func tracePNGtoSVG(from, to, mode string, speckle, precision int, gradients bool
 		"--filter_speckle", fmt.Sprintf("%d", speckle),
 		"--color_precision", fmt.Sprintf("%d", precision),
 		"--gradient_step", fmt.Sprintf("%d", gradientStep),
+		// Fit smoother splines than vtracer's defaults (corner 60, segment 4):
+		// the blemishes in traced logos are mostly wobbly edges, and smoother
+		// curves clean them up while preserving fine detail like small text.
+		// corner_threshold 70 still keeps intentionally sharp corners.
+		"--corner_threshold", "70",
+		"--segment_length", "8",
 	)
 	vt.Stderr = nil
 	if err := vt.Run(); err != nil {

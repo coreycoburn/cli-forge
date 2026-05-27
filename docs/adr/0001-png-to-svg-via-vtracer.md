@@ -40,3 +40,8 @@ or breaking non-macOS builds.
   primary inputs are logos and icons, we raise `gradient_step` to collapse the
   banding (~160 paths) and gate the photographic banded look behind
   `--gradients`. Trades gradient fidelity for dramatically smaller, cleaner SVGs.
+- Default curve fitting is smoothed (corner_threshold 70, segment_length 8)
+  rather than vtracer's defaults. Traced-logo "blemishes" are mostly wobbly
+  spline edges, not stray specks — smoother curves fix them. Note: do NOT raise
+  filter_speckle past ~8 to chase blemishes; speckle > ~16px silently deletes
+  thin small text (e.g. a tagline) on a typical ~1200px source.

@@ -73,6 +73,8 @@ brews:
     license: MIT
     dependencies:
       - name: ghostscript
+      - name: pngquant
+      - name: oxipng
     caveats: |
       The convert command also requires Inkscape:
         brew install --cask inkscape

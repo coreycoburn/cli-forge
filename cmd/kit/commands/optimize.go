@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -16,14 +17,21 @@ import (
 	"github.com/tdewolff/minify/v2/svg"
 )
 
-// OptimizeCmd optimizes files in-place. Currently supports SVG.
-// Fully self-contained — no external dependencies required.
+// OptimizeCmd optimizes files in-place. Supports SVG (self-contained) and
+// PNG (requires pngquant + oxipng).
 func OptimizeCmd() *cobra.Command {
+	var lossless bool
+
 	cmd := &cobra.Command{
 		Use:   "optimize <file>",
 		Short: "Optimize a file in-place",
-		Long:  "Optimize files in-place.\n\nSupported formats:\n  svg    (minify, remove dimensions, colors → currentColor, ensure xmlns)",
-		Args:  cobra.ExactArgs(1),
+		Long: "Optimize files in-place.\n\n" +
+			"Supported formats:\n" +
+			"  svg    (minify, remove dimensions, colors → currentColor, ensure xmlns)\n" +
+			"  png    (pngquant lossy quantization + oxipng lossless — requires: pngquant, oxipng)\n\n" +
+			"Flags:\n" +
+			"  --lossless    PNG only: skip pngquant, run oxipng only (no visual change)",
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := forge.OutputFrom(cmd)
 			file := args[0]
@@ -35,57 +43,184 @@ func OptimizeCmd() *cobra.Command {
 
 			// Check supported format
 			ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(file)), ".")
-			if ext != "svg" {
-				return fmt.Errorf("unsupported format: %s (supported: svg)", ext)
+			switch ext {
+			case "svg":
+				return optimizeSVGFile(out, file)
+			case "png":
+				return optimizePNGFile(out, file, lossless)
+			default:
+				return fmt.Errorf("unsupported format: %s (supported: svg, png)", ext)
 			}
-
-			// Read file
-			data, err := os.ReadFile(file)
-			if err != nil {
-				return err
-			}
-
-			// Capture before sizes
-			rawBefore := len(data)
-			gzBefore := gzipSize(data)
-
-			// Optimize
-			var optimized []byte
-			err = out.Spin("Optimizing "+filepath.Base(file), func() error {
-				var err error
-				optimized, err = optimizeSVG(data)
-				return err
-			})
-			if err != nil {
-				return err
-			}
-
-			// Write back
-			if err := os.WriteFile(file, optimized, 0644); err != nil {
-				return err
-			}
-
-			// Capture after sizes
-			rawAfter := len(optimized)
-			gzAfter := gzipSize(optimized)
-
-			if out.IsInteractive() {
-				renderTable(out, filepath.Base(file), rawBefore, rawAfter, gzBefore, gzAfter)
-			} else {
-				return out.JSON(map[string]any{
-					"status":  "success",
-					"file":    file,
-					"message": "optimization complete",
-					"raw":     map[string]int{"before": rawBefore, "after": rawAfter},
-					"gzip":    map[string]int{"before": gzBefore, "after": gzAfter},
-				})
-			}
-
-			return nil
 		},
 	}
 
+	cmd.Flags().BoolVar(&lossless, "lossless", false, "PNG only: skip pngquant, run oxipng only")
+
 	return cmd
+}
+
+// optimizeSVGFile reads, optimizes, and rewrites an SVG file in-place.
+func optimizeSVGFile(out *forge.Output, file string) error {
+	data, err := os.ReadFile(file)
+	if err != nil {
+		return err
+	}
+
+	rawBefore := len(data)
+	gzBefore := gzipSize(data)
+
+	var optimized []byte
+	err = out.Spin("Optimizing "+filepath.Base(file), func() error {
+		var err error
+		optimized, err = optimizeSVG(data)
+		return err
+	})
+	if err != nil {
+		return err
+	}
+
+	if err := os.WriteFile(file, optimized, 0644); err != nil {
+		return err
+	}
+
+	rawAfter := len(optimized)
+	gzAfter := gzipSize(optimized)
+
+	if out.IsInteractive() {
+		renderTable(out, filepath.Base(file), rawBefore, rawAfter, gzBefore, gzAfter)
+	} else {
+		return out.JSON(map[string]any{
+			"status":  "success",
+			"file":    file,
+			"message": "optimization complete",
+			"raw":     map[string]int{"before": rawBefore, "after": rawAfter},
+			"gzip":    map[string]int{"before": gzBefore, "after": gzAfter},
+		})
+	}
+
+	return nil
+}
+
+// optimizePNGFile runs the external PNG optimization pipeline in-place.
+// Default: pngquant (lossy palette) → oxipng (lossless deflate).
+// --lossless: oxipng only.
+//
+// pngquant is run first because palette quantization yields the largest
+// savings on logos/icons/screenshots (typically 50–70%) and is visually
+// indistinguishable in the 80–95 quality range we target. oxipng then
+// recompresses the already-small file losslessly for an additional ~5–15%.
+func optimizePNGFile(out *forge.Output, file string, lossless bool) error {
+	// Always need oxipng; only need pngquant for the lossy step.
+	if err := requireBinary("oxipng", "brew install oxipng"); err != nil {
+		return err
+	}
+	if !lossless {
+		if err := requireBinary("pngquant", "brew install pngquant"); err != nil {
+			return err
+		}
+	}
+
+	info, err := os.Stat(file)
+	if err != nil {
+		return err
+	}
+	rawBefore := int(info.Size())
+	srcData, err := os.ReadFile(file)
+	if err != nil {
+		return err
+	}
+	gzBefore := gzipSize(srcData)
+
+	// Skip pngquant for grayscale-palette sources or when lossless is requested.
+	// If pngquant fails (can't meet quality floor), we continue to oxipng
+	// on the original file rather than erroring out.
+	err = out.Spin("Optimizing "+filepath.Base(file), func() error {
+		if !lossless {
+			if qErr := runPngquant(file); qErr != nil && out.IsInteractive() {
+				out.Warn(fmt.Sprintf("pngquant skipped: %v (continuing with oxipng)", qErr))
+			}
+		}
+		return runOxipng(file)
+	})
+	if err != nil {
+		return err
+	}
+
+	info, err = os.Stat(file)
+	if err != nil {
+		return err
+	}
+	rawAfter := int(info.Size())
+	optData, err := os.ReadFile(file)
+	if err != nil {
+		return err
+	}
+	gzAfter := gzipSize(optData)
+
+	if out.IsInteractive() {
+		renderTable(out, filepath.Base(file), rawBefore, rawAfter, gzBefore, gzAfter)
+	} else {
+		return out.JSON(map[string]any{
+			"status":  "success",
+			"file":    file,
+			"message": "optimization complete",
+			"raw":     map[string]int{"before": rawBefore, "after": rawAfter},
+			"gzip":    map[string]int{"before": gzBefore, "after": gzAfter},
+		})
+	}
+
+	return nil
+}
+
+// runPngquant quantizes the PNG's palette in-place via a temp file.
+// Returns an error if pngquant can't improve the file at our quality floor —
+// the caller should treat that as non-fatal and continue with oxipng.
+func runPngquant(file string) error {
+	tmp, err := os.CreateTemp(filepath.Dir(file), ".kit-pngquant-*.png")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmp.Name()
+	tmp.Close()
+	defer os.Remove(tmpPath)
+
+	// --quality=80-95: lower bound (minimum acceptable), upper bound (target).
+	//   pngquant aborts with exit 99 if it can't hit 80 — treat as "can't improve".
+	// --speed=1: slowest/highest quality dithering.
+	// --strip: drop all ancillary chunks (EXIF, timestamp, etc).
+	// --force: overwrite output if it exists (we created the temp).
+	cmd := exec.Command("pngquant",
+		"--quality=80-95",
+		"--speed=1",
+		"--strip",
+		"--force",
+		"--output", tmpPath,
+		file,
+	)
+	cmd.Stderr = nil
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("pngquant exited non-zero (likely can't meet quality floor): %w", err)
+	}
+
+	return os.Rename(tmpPath, file)
+}
+
+// runOxipng losslessly recompresses a PNG in-place.
+func runOxipng(file string) error {
+	// -o max: try every deflate strategy (slower, best ratio).
+	// --strip safe: remove chunks that are safe to drop (no visual/color impact).
+	// --quiet: no progress noise.
+	cmd := exec.Command("oxipng",
+		"-o", "max",
+		"--strip", "safe",
+		"--quiet",
+		file,
+	)
+	cmd.Stderr = nil
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("oxipng failed: %w", err)
+	}
+	return nil
 }
 
 // runOptimize is called by the convert command's --optimize flag.

@@ -2,3 +2,7 @@ bin/
 dist/
 *.exe
 .claude/settings.json
+
+# Stray binaries from `go build ./cmd/<name>` without -o (drops in CWD)
+/kit
+/confluence

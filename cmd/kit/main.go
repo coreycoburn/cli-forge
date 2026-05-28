@@ -15,6 +15,7 @@ func main() {
 	app.AddCommand(
 		commands.ConvertCmd(),
 		commands.TraceCmd(),
+		commands.RetextCmd(),
 		commands.OptimizeCmd(),
 	)
 

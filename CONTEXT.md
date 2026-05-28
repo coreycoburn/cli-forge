@@ -20,6 +20,13 @@ guess and is never an exact reproduction of the source.
 _Avoid_: convert (a trace is not faithful — they are different operations).
 `vectorize` is an accepted alias.
 
+**Retext**:
+Detecting raster text in an image and re-setting it as clean glyph outlines from
+a matched font, instead of leaving it as rough traced paths. A re-typeset, not a
+pixel reconstruction — distinct from **Trace**, which it builds on. The output is
+self-contained (outlined paths, no font dependency).
+_Avoid_: detext, OCR-replace
+
 **Optimize**:
 An _in-place_ reduction of a file's size, with no change to format and no
 perceptible change to appearance (SVG minification, PNG quantization and
